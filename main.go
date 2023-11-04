@@ -15,7 +15,6 @@ import (
 	// _ "github.com/pingcap/tidb/parser/test_driver"
 )
 
-// go run main.go -file /path/to/file.go
 func main() {
 	filepath := flag.String("file", "", "file path")
 	format := flag.String("format", "tsv", "output format. tsv or json (default:tsv)")
