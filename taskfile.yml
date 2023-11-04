@@ -1,0 +1,11 @@
+# go install github.com/go-task/task/v3/cmd/task@latest
+version: "3"
+
+tasks:
+  lint:
+    cmds:
+      - '[[ -f "$(go env GOPATH)/bin/staticcheck)" ]] || go install honnef.co/go/tools/cmd/staticcheck@latest'
+      - "$(go env GOPATH)/bin/staticcheck ./..."
+  # test:
+  #   cmds:
+  #     - go test ./...
