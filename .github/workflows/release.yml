@@ -1,0 +1,39 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout code
+        uses: actions/checkout@master
+      - name: setup go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+      - name: lint
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@latest
+          $(go env GOPATH)/bin/task lint
+      - name: build
+        run: |
+          go install github.com/Songmu/goxz/cmd/goxz@latest
+          VERSION=$(git describe --tags 2>/dev/null || echo "NotSpecified-$(date +%Y%m%d)-$(git rev-parse --short HEAD)")
+          $(go env GOPATH)/bin/goxz -os=linux,darwin,windows -arch=amd64,arm64 -build-ldflags="-X \"main.Version=${VERSION}\" -w -s -extldflags '-static'" -build-tags=netgo,osusergo -d dist
+      - name: release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          # require: permissions.contents=write in workflow
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: false
+          generate_release_notes: true
+          files: dist/*
