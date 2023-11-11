@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"go/ast"
@@ -18,6 +20,7 @@ import (
 func main() {
 	filepath := flag.String("file", "", "file path")
 	format := flag.String("format", "tsv", "output format. tsv or json (default:tsv)")
+	withChecksum := flag.Bool("checksum", false, "output checksum of SQL (default:false)")
 	flag.Parse()
 
 	if *filepath == "" {
@@ -105,11 +108,15 @@ func main() {
 		fmt.Printf("%s\n", string(b))
 	} else {
 		// tsv
-		fmt.Println("Location\tSQL")
+		if *withChecksum {
+			fmt.Println("Location\tChecksum\tSQL")
+		} else {
+			fmt.Println("Location\tSQL")
+		}
 		for _, c := range sqlCallers {
 			c := c
 			// fmt.Printf("%s\t%s\t%d\t%d\t%s\t%s\n", c.FileName, c.FuncName, c.LineNum, c.ColNum, c.SQL, c.Caller.Describe())
-			fmt.Println(c.Describe())
+			fmt.Println(c.Describe(*withChecksum))
 		}
 	}
 }
@@ -259,14 +266,36 @@ type SQLCaller struct {
 	ColNum   int        `json:"ColNum"`
 	FuncName string     `json:"FuncName"`
 	SQL      string     `json:"SQL,omitempty"`
+	Checksum string     `json:"Checksum,omitempty"` // empty in usual. dynamically calculated when marshaling/describing
 	Caller   *SQLCaller `json:"Caller,omitempty"`
 }
 
-func (c *SQLCaller) Describe() string {
+func (c *SQLCaller) Describe(withChecksum bool) string {
 	if c.Caller == nil {
+		if withChecksum {
+			return fmt.Sprintf("%s:%d\t%s\t%s", c.FuncName, c.LineNum, c.SQLChecksum(), c.SQL)
+		}
 		return fmt.Sprintf("%s:%d\t%s", c.FuncName, c.LineNum, c.SQL)
 	}
-	return fmt.Sprintf("%s:%d,%s", c.FuncName, c.LineNum, c.Caller.Describe())
+	return fmt.Sprintf("%s:%d,%s", c.FuncName, c.LineNum, c.Caller.Describe(withChecksum))
+}
+
+func (c *SQLCaller) MarshalJSON() ([]byte, error) {
+	clone := *c
+	clone.Checksum = clone.SQLChecksum()
+
+	// avoid infinite loop
+	type Alias SQLCaller
+	return json.Marshal(&struct {
+		*Alias
+	}{
+		Alias: (*Alias)(&clone),
+	})
+}
+
+func (c *SQLCaller) SQLChecksum() string {
+	md5sum := md5.Sum([]byte(c.SQL))
+	return strings.ToUpper(hex.EncodeToString(md5sum[:]))
 }
 
 func SQLCallerEquals(a, b *SQLCaller) bool {
