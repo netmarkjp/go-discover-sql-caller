@@ -3,10 +3,10 @@
 what's this
 
 - list sql queries in go source code
-      - function name
-      - line number
-      - sql query checksum
-      - sql query
+    - function name
+    - line number
+    - sql query checksum
+    - sql query
 - track call hierarchy in go source code
 
 restrictions
