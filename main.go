@@ -21,25 +21,24 @@ import (
 
 func main() {
 	filepath := flag.String("file", "", "file path")
-	format := flag.String("format", "tsv", "output format. tsv or text or json (default:tsv)")
-	withChecksum := flag.Bool("checksum", false, "output checksum of SQL (default:false)")
+	format := flag.String("format", "text", "output format. text or tsv or json")
 	flag.Parse()
 
 	if *filepath == "" {
-		slog.Error("Error: filepath is required. use -file option")
+		slog.Error("-file is required")
 		return
 	}
 
 	*format = strings.ToLower(*format)
-	if *format != "tsv" && *format != "text" && *format != "json" {
-		slog.Error("Error: format must be tsv or text or json")
+	if *format != "text" && *format != "tsv" && *format != "json" {
+		slog.Error("-format must be text or tsv or json")
 		return
 	}
 
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, *filepath, nil, 0)
 	if err != nil {
-		slog.Error("Error: %+v", err)
+		slog.Error("%+v", err)
 		return
 	}
 
@@ -108,30 +107,22 @@ func main() {
 			return
 		}
 		fmt.Printf("%s\n", string(b))
-	} else if *format == "text" {
-		w := tabwriter.NewWriter(os.Stdout, 2, 0, 1, ' ', 0)
-		if *withChecksum {
-			fmt.Fprintln(w, "Location\tChecksum\tSQL")
-		} else {
-			fmt.Fprintln(w, "Location\tSQL")
-		}
-		for _, c := range sqlCallers {
-			c := c
-			fmt.Fprintln(w, c.Describe(*withChecksum))
-		}
-		w.Flush()
-	} else {
+	} else if *format == "tsv" {
 		// tsv
-		if *withChecksum {
-			fmt.Println("Location\tChecksum\tSQL")
-		} else {
-			fmt.Println("Location\tSQL")
-		}
+		fmt.Println("Location\tChecksum\tSQL")
 		for _, c := range sqlCallers {
 			c := c
 			// fmt.Printf("%s\t%s\t%d\t%d\t%s\t%s\n", c.FileName, c.FuncName, c.LineNum, c.ColNum, c.SQL, c.Caller.Describe())
-			fmt.Println(c.Describe(*withChecksum))
+			fmt.Println(c.Describe())
 		}
+	} else {
+		w := tabwriter.NewWriter(os.Stdout, 2, 0, 1, ' ', 0)
+		fmt.Fprintln(w, "Location\tChecksum\tSQL")
+		for _, c := range sqlCallers {
+			c := c
+			fmt.Fprintln(w, c.Describe())
+		}
+		w.Flush()
 	}
 }
 
@@ -284,14 +275,11 @@ type SQLCaller struct {
 	Caller   *SQLCaller `json:"Caller,omitempty"`
 }
 
-func (c *SQLCaller) Describe(withChecksum bool) string {
+func (c *SQLCaller) Describe() string {
 	if c.Caller == nil {
-		if withChecksum {
-			return fmt.Sprintf("%s:%d\t%s\t%s", c.FuncName, c.LineNum, c.SQLChecksum(), c.SQL)
-		}
-		return fmt.Sprintf("%s:%d\t%s", c.FuncName, c.LineNum, c.SQL)
+		return fmt.Sprintf("%s:%d\t%s\t%s", c.FuncName, c.LineNum, c.SQLChecksum(), c.SQL)
 	}
-	return fmt.Sprintf("%s:%d,%s", c.FuncName, c.LineNum, c.Caller.Describe(withChecksum))
+	return fmt.Sprintf("%s:%d,%s", c.FuncName, c.LineNum, c.Caller.Describe())
 }
 
 func (c *SQLCaller) MarshalJSON() ([]byte, error) {
