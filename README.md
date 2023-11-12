@@ -34,9 +34,19 @@ tsv(default),with checksum
 
 ```
 $ ./go-discover-sql-caller -file /path/to/file.go -checksum
-Location\tSQL
-dispenseID:106\tREPLACE INTO idgen (stub) VALUES (?);
+Location\tChecksum\tSQL
+dispenseID:106\t8FAC9DB94464380B4EAB33D717A942BE\tREPLACE INTO idgen (stub) VALUES (?);
 parseViewer:294,retrieveTenantRow:339\tC55C59B417205E38BD8968D58C1D3059\tSELECT * FROM tenant WHERE id = ?;
+...
+```
+
+text,with checksum
+
+```
+$ ./go-discover-sql-caller -file /path/to/file.go -format text -checksum
+Location                               Checksum                          SQL
+dispenseID:106                         8FAC9DB94464380B4EAB33D717A942BE  REPLACE INTO idgen (stub) VALUES (?);
+parseViewer:294,retrieveTenantRow:339  C55C59B417205E38BD8968D58C1D3059  SELECT * FROM tenant WHERE id = ?;
 ...
 ```
 
