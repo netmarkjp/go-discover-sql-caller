@@ -9,7 +9,9 @@ import (
 	"go/parser"
 	"go/token"
 	"log/slog"
+	"os"
 	"slices"
+	"text/tabwriter"
 
 	"flag"
 	"strings"
@@ -19,7 +21,7 @@ import (
 
 func main() {
 	filepath := flag.String("file", "", "file path")
-	format := flag.String("format", "tsv", "output format. tsv or json (default:tsv)")
+	format := flag.String("format", "tsv", "output format. tsv or text or json (default:tsv)")
 	withChecksum := flag.Bool("checksum", false, "output checksum of SQL (default:false)")
 	flag.Parse()
 
@@ -29,8 +31,8 @@ func main() {
 	}
 
 	*format = strings.ToLower(*format)
-	if *format != "tsv" && *format != "json" {
-		slog.Error("Error: format must be tsv or json")
+	if *format != "tsv" && *format != "text" && *format != "json" {
+		slog.Error("Error: format must be tsv or text or json")
 		return
 	}
 
@@ -106,6 +108,18 @@ func main() {
 			return
 		}
 		fmt.Printf("%s\n", string(b))
+	} else if *format == "text" {
+		w := tabwriter.NewWriter(os.Stdout, 2, 0, 1, ' ', 0)
+		if *withChecksum {
+			fmt.Fprintln(w, "Location\tChecksum\tSQL")
+		} else {
+			fmt.Fprintln(w, "Location\tSQL")
+		}
+		for _, c := range sqlCallers {
+			c := c
+			fmt.Fprintln(w, c.Describe(*withChecksum))
+		}
+		w.Flush()
 	} else {
 		// tsv
 		if *withChecksum {
