@@ -31,6 +31,7 @@ jobs:
       - name: release
         uses: softprops/action-gh-release@v1
         if: github.ref == 'refs/heads/main' && startsWith(github.ref, 'refs/tags/v')
+        # && github.event_name == 'push'
         with:
           # require: permissions.contents=write in workflow
           token: ${{ secrets.GITHUB_TOKEN }}
