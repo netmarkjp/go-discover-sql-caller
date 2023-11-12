@@ -6,6 +6,6 @@ tasks:
     cmds:
       - '[[ -f "$(go env GOPATH)/bin/staticcheck)" ]] || go install honnef.co/go/tools/cmd/staticcheck@latest'
       - "$(go env GOPATH)/bin/staticcheck ./..."
-  # test:
-  #   cmds:
-  #     - go test ./...
+  test:
+    cmds:
+      - go test -v ./...

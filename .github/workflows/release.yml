@@ -1,9 +1,9 @@
-name: release
+name: basic ci and release
+# run ci on push to any branch. static analysis, tests, etc... and build binary.
+# release on push to main branch with tag starting with "v" (ex: "v0.0.1")
 
 on:
   push:
-    tags:
-      - "v*"
 
 permissions:
   contents: write
@@ -30,7 +30,8 @@ jobs:
           $(go env GOPATH)/bin/goxz -os=linux,darwin,windows -arch=amd64,arm64 -build-ldflags="-X \"main.Version=${VERSION}\" -w -s -extldflags '-static'" -build-tags=netgo,osusergo -d dist
       - name: release
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.ref == 'refs/heads/main' && startsWith(github.ref, 'refs/tags/v')
+        # && github.event_name == 'push'
         with:
           # require: permissions.contents=write in workflow
           token: ${{ secrets.GITHUB_TOKEN }}
