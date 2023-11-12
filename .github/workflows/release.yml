@@ -19,10 +19,10 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version-file: go.mod
-      - name: lint
+      - name: lint, test
         run: |
           go install github.com/go-task/task/v3/cmd/task@latest
-          $(go env GOPATH)/bin/task lint
+          $(go env GOPATH)/bin/task lint test
       - name: build
         run: |
           go install github.com/Songmu/goxz/cmd/goxz@latest
@@ -30,7 +30,7 @@ jobs:
           $(go env GOPATH)/bin/goxz -os=linux,darwin,windows -arch=amd64,arm64 -build-ldflags="-X \"main.Version=${VERSION}\" -w -s -extldflags '-static'" -build-tags=netgo,osusergo -d dist
       - name: release
         uses: softprops/action-gh-release@v1
-        if: github.ref == 'refs/heads/main' && startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v')
         # && github.event_name == 'push'
         with:
           # require: permissions.contents=write in workflow
