@@ -20,6 +20,8 @@ restrictions
         file path
   -format string
         output format. text or tsv or json (default "text")
+  -notrace
+        do not trace caller function. only show sql query definitions in the file
 ```
 
 format: text(default)
@@ -29,6 +31,16 @@ $ ./go-discover-sql-caller -file /path/to/file.go
 Location                               Checksum                          SQL
 dispenseID:106                         8FAC9DB94464380B4EAB33D717A942BE  REPLACE INTO idgen (stub) VALUES (?);
 parseViewer:294,retrieveTenantRow:339  C55C59B417205E38BD8968D58C1D3059  SELECT * FROM tenant WHERE id = ?;
+...
+```
+
+format: text(default), notrace
+
+```
+$ ./go-discover-sql-caller -file /path/to/file.go -notrace
+Location                               Checksum                          SQL
+dispenseID:106         8FAC9DB94464380B4EAB33D717A942BE  REPLACE INTO idgen (stub) VALUES (?);
+retrieveTenantRow:339  C55C59B417205E38BD8968D58C1D3059  SELECT * FROM tenant WHERE id = ?;
 ...
 ```
 
