@@ -22,6 +22,7 @@ import (
 func main() {
 	filepath := flag.String("file", "", "file path")
 	format := flag.String("format", "text", "output format. text or tsv or json")
+	notrace := flag.Bool("notrace", false, "do not trace caller function. only show sql query definitions in the file")
 	flag.Parse()
 
 	if *filepath == "" {
@@ -78,11 +79,13 @@ func main() {
 	})
 
 	// SQLが含まれる関数を呼び出している関数を探す
-	found := 0
-	for {
-		found, sqlCallers = discoverSQLCallers(sqlCallers, f, fset)
-		if found == 0 {
-			break
+	if !*notrace {
+		found := 0
+		for {
+			found, sqlCallers = discoverSQLCallers(sqlCallers, f, fset)
+			if found == 0 {
+				break
+			}
 		}
 	}
 
