@@ -19,8 +19,6 @@ When use with one file, use `-file` option.
 When use with package, use `-dir` option.
 
 ```sh
-
-```sh
   -dir string
         directory path
   -file string
