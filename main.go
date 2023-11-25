@@ -21,12 +21,16 @@ import (
 
 func main() {
 	filepath := flag.String("file", "", "file path")
+	dirpath := flag.String("dir", "", "directory path")
 	format := flag.String("format", "text", "output format. text or tsv or json")
 	notrace := flag.Bool("notrace", false, "do not trace caller function. only show sql query definitions in the file")
 	flag.Parse()
 
-	if *filepath == "" {
-		slog.Error("-file is required")
+	if *filepath == "" && *dirpath == "" {
+		slog.Error("-file or -dir is required")
+		return
+	} else if *filepath != "" && *dirpath != "" {
+		slog.Error("-file and -dir cannot be specified at the same time")
 		return
 	}
 
@@ -36,15 +40,73 @@ func main() {
 		return
 	}
 
+	var sqlCallers []*SQLCaller
+
+	// 深さ優先で探索してSQLが含まれる関数を探す
+	// SQLが含まれる関数を呼び出している関数を探す
+	if *filepath != "" {
+		var shouldReturn bool
+		sqlCallers, shouldReturn = parseSQLCallers(filepath, sqlCallers, notrace)
+		if shouldReturn {
+			return
+		}
+	} else if *dirpath != "" {
+		var shouldReturn bool
+		sqlCallers, shouldReturn = parsePkgSQLCallers(dirpath, sqlCallers, notrace)
+		if shouldReturn {
+			return
+		}
+	}
+
+	slices.SortFunc(sqlCallers, func(a, b *SQLCaller) int {
+		if a.FileName != b.FileName {
+			return strings.Compare(a.FileName, b.FileName)
+		}
+		if a.LineNum != b.LineNum {
+			return a.LineNum - b.LineNum
+		}
+		if a.ColNum != b.ColNum {
+			return a.ColNum - b.ColNum
+		}
+		return 1
+	})
+
+	if *format == "json" {
+		// json marshal
+		b, err := json.Marshal(sqlCallers)
+		if err != nil {
+			slog.Error("Error: %v", err)
+			return
+		}
+		fmt.Printf("%s\n", string(b))
+	} else if *format == "tsv" {
+		// tsv
+		fmt.Println("Location\tChecksum\tSQL")
+		for _, c := range sqlCallers {
+			c := c
+			// fmt.Printf("%s\t%s\t%d\t%d\t%s\t%s\n", c.FileName, c.FuncName, c.LineNum, c.ColNum, c.SQL, c.Caller.Describe())
+			fmt.Println(c.Describe())
+		}
+	} else {
+		w := tabwriter.NewWriter(os.Stdout, 2, 0, 1, ' ', 0)
+		fmt.Fprintln(w, "Location\tChecksum\tSQL")
+		for _, c := range sqlCallers {
+			c := c
+			fmt.Fprintln(w, c.Describe())
+		}
+		w.Flush()
+	}
+}
+
+func parseSQLCallers(filepath *string, sqlCallers []*SQLCaller, notrace *bool) ([]*SQLCaller, bool) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, *filepath, nil, 0)
 	if err != nil {
-		slog.Error("%+v", err)
-		return
+		slog.Error(err.Error())
+		return nil, true
 	}
 
-	// 深さ優先で探索してSQLが含まれる関数を探す
-	sqlCallers := []*SQLCaller{}
+	sqlCallers = []*SQLCaller{}
 	walkFuncNames := []string{}
 	ast.Inspect(f, func(n ast.Node) bool {
 
@@ -78,7 +140,6 @@ func main() {
 		return true
 	})
 
-	// SQLが含まれる関数を呼び出している関数を探す
 	if !*notrace {
 		found := 0
 		for {
@@ -88,47 +149,66 @@ func main() {
 			}
 		}
 	}
-
-	slices.SortFunc(sqlCallers, func(a, b *SQLCaller) int {
-		if a.FileName != b.FileName {
-			return strings.Compare(a.FileName, b.FileName)
-		}
-		if a.LineNum != b.LineNum {
-			return a.LineNum - b.LineNum
-		}
-		if a.ColNum != b.ColNum {
-			return a.ColNum - b.ColNum
-		}
-		return 1
-	})
-
-	if *format == "json" {
-		// json marshal
-		b, err := json.Marshal(sqlCallers)
-		if err != nil {
-			slog.Error("Error: %+v", err)
-			return
-		}
-		fmt.Printf("%s\n", string(b))
-	} else if *format == "tsv" {
-		// tsv
-		fmt.Println("Location\tChecksum\tSQL")
-		for _, c := range sqlCallers {
-			c := c
-			// fmt.Printf("%s\t%s\t%d\t%d\t%s\t%s\n", c.FileName, c.FuncName, c.LineNum, c.ColNum, c.SQL, c.Caller.Describe())
-			fmt.Println(c.Describe())
-		}
-	} else {
-		w := tabwriter.NewWriter(os.Stdout, 2, 0, 1, ' ', 0)
-		fmt.Fprintln(w, "Location\tChecksum\tSQL")
-		for _, c := range sqlCallers {
-			c := c
-			fmt.Fprintln(w, c.Describe())
-		}
-		w.Flush()
-	}
+	return sqlCallers, false
 }
 
+func parsePkgSQLCallers(dirpath *string, sqlCallers []*SQLCaller, notrace *bool) ([]*SQLCaller, bool) {
+	fset := token.NewFileSet()
+	pkgs, err := parser.ParseDir(fset, *dirpath, nil, 0)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, true
+	}
+
+	sqlCallers = []*SQLCaller{}
+	walkFuncNames := []string{}
+	for _, pkg := range pkgs {
+		for _, f := range pkg.Files {
+			ast.Inspect(f, func(n ast.Node) bool {
+
+				fd, ok := n.(*ast.FuncDecl)
+				if ok {
+					walkFuncNames = append(walkFuncNames, fd.Name.Name)
+					return true
+				}
+
+				bl, ok := n.(*ast.BasicLit)
+				if !ok {
+					return true
+				}
+				if bl.Kind != token.STRING {
+					return true
+				}
+				sql := strip(bl.Value)
+				if !isSQL(sql) {
+					return true
+				}
+				pos := fset.Position(bl.Pos())
+
+				sqlCallers = append(sqlCallers, &SQLCaller{
+					FileName: pos.Filename,
+					LineNum:  pos.Line,
+					ColNum:   pos.Column,
+					FuncName: walkFuncNames[len(walkFuncNames)-1],
+					SQL:      sql,
+				})
+
+				return true
+			})
+			if !*notrace {
+				found := 0
+				for {
+					found, sqlCallers = discoverSQLCallers(sqlCallers, f, fset)
+					if found == 0 {
+						break
+					}
+				}
+			}
+		}
+	}
+
+	return sqlCallers, false
+}
 func discoverSQLCallers(sqlCallers []*SQLCaller, f *ast.File, fset *token.FileSet) (int, []*SQLCaller) {
 	found := 0
 	sqlCallerFuncNames := []string{}
