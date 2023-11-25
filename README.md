@@ -1,17 +1,13 @@
 # go-discover-sql-caller
 
-what's this
+What's this
 
-- list sql queries in go source code
+- List SQL queries in go source code
     - function name
     - line number
     - sql query checksum
     - sql query
-- track call hierarchy in go source code
-
-restrictions
-
-- can handle only 1 file
+- Track call hierarchy in go source code
 
 # Usage
 
