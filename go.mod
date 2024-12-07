@@ -1,3 +1,3 @@
 module github.com/netmarkjp/go-discover-sql-caller
 
-go 1.21.1
+go 1.23.4
