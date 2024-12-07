@@ -76,7 +76,7 @@ func main() {
 		// json marshal
 		b, err := json.Marshal(sqlCallers)
 		if err != nil {
-			slog.Error("Error: %v", err)
+			slog.Error(fmt.Sprintf("Error: %v", err))
 			return
 		}
 		fmt.Printf("%s\n", string(b))
