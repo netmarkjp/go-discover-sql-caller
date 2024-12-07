@@ -24,6 +24,7 @@ func main() {
 	dirpath := flag.String("dir", "", "directory path")
 	format := flag.String("format", "text", "output format. text or tsv or json")
 	notrace := flag.Bool("notrace", false, "do not trace caller function. only show sql query definitions in the file")
+	stats := flag.Bool("stats", false, "show stats")
 	flag.Parse()
 
 	if *filepath == "" && *dirpath == "" {
@@ -95,6 +96,44 @@ func main() {
 			fmt.Fprintln(w, c.Describe())
 		}
 		w.Flush()
+	}
+
+	if *stats {
+		checksumStats := map[string]int{}
+		for _, c := range sqlCallers {
+			c := c
+			_checksum := c.SQLChecksum()
+			if _, ok := checksumStats[_checksum]; ok {
+				checksumStats[_checksum] = checksumStats[_checksum] + 1
+			} else {
+				checksumStats[_checksum] = 1
+			}
+		}
+
+		checksumStatsSlice := []struct {
+			key   string
+			value int
+		}{}
+		for k, v := range checksumStats {
+			checksumStatsSlice = append(checksumStatsSlice, struct {
+				key   string
+				value int
+			}{k, v})
+		}
+		slices.SortFunc(checksumStatsSlice, func(a, b struct {
+			key   string
+			value int
+		}) int {
+			return b.value - a.value
+		})
+
+		fmt.Print("\n")
+		fmt.Println("Checksum\tCount")
+		// Print checksumStats in descending order
+		for _, cs := range checksumStatsSlice {
+			fmt.Printf("%s\t%d\n", cs.key, cs.value)
+		}
+
 	}
 }
 
